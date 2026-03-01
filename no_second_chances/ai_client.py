@@ -131,6 +131,39 @@ async def generate_ban_joke(user_id: int) -> str:
     return result if result else random.choice(_BAN_JOKE_FALLBACKS)
 
 
+async def generate_ban_dm(user_id: int, first_name: str, chat_name: str) -> str:
+    if not AI_ENABLED:
+        return f"You've been permanently removed from {chat_name}. This action cannot be reversed."
+
+    prompt = (
+        f"Write a polite, brief Telegram DM to {first_name} letting them know they've been "
+        f"permanently banned from {chat_name}. Be professional and firm. Max 2 sentences."
+    )
+    result = await get_ai_response(prompt)
+    return result if result else f"You've been permanently removed from {chat_name}. This action cannot be reversed."
+
+
+async def generate_plea_response(approved: bool, first_name: str) -> str:
+    if not AI_ENABLED:
+        return (
+            "Great news — your request has been approved!"
+            if approved
+            else "Your request was carefully reviewed but could not be approved."
+        )
+
+    action = "approved" if approved else "denied"
+    prompt = (
+        f"Write a short message to {first_name} whose unban request was {action}. "
+        f"Be kind but firm. 1 sentence."
+    )
+    result = await get_ai_response(prompt)
+    return result if result else (
+        "Great news — your request has been approved!"
+        if approved
+        else "Your request was carefully reviewed but could not be approved."
+    )
+
+
 async def answer_user_question(question: str, username: str = "user") -> str | None:
     if not AI_ENABLED:
         return None

@@ -9,6 +9,7 @@ from database.db import setup_database
 from no_second_chances.plugin import register_plugin
 from no_second_chances.admin_cmds import register_admin_cmds
 from no_second_chances.user_cmds import register_user_cmds
+from no_second_chances.settings_cmds import register_settings_cmds
 from no_second_chances.ai_client import initialize_ai
 from logger import logger
 
@@ -70,13 +71,18 @@ class NoSecondChancesBot:
             await asyncio.sleep(14 * 60)
 
     async def _cache_eviction_loop(self):
-        from no_second_chances.cache import blacklist_cache, member_count_cache, stats_cache, wallpaper_cache
+        from no_second_chances.cache import (
+            blacklist_cache, member_count_cache, stats_cache, wallpaper_cache,
+            settings_cache, bot_users_cache
+        )
         while True:
             await asyncio.sleep(300)
             blacklist_cache.evict_expired()
             member_count_cache.evict_expired()
             stats_cache.evict_expired()
             wallpaper_cache.evict_expired()
+            settings_cache.evict_expired()
+            bot_users_cache.evict_expired()
 
     async def start(self):
         try:
@@ -88,6 +94,7 @@ class NoSecondChancesBot:
             register_plugin(self.app)
             register_admin_cmds(self.app)
             register_user_cmds(self.app)
+            register_settings_cmds(self.app)
 
             await self.app.start()
             logger.info("Bot is now online and enforcing rules.")
