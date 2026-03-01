@@ -85,7 +85,7 @@ def register_admin_cmds(app: Client):
         try:
             chat = await client.get_chat(chat_id)
             chat_name = chat.title or "This Chat"
-        except:
+        except Exception:
             chat_name = f"Chat {chat_id}"
 
         count_key = f"member_count:{chat_id}"
@@ -145,6 +145,70 @@ def register_admin_cmds(app: Client):
         ])
 
         await message.reply_text(header, reply_markup=keyboard)
+
+    @app.on_callback_query(filters.regex(r"^gadm_stats$"))
+    async def cb_gadm_stats(client: Client, query: CallbackQuery):
+        await query.answer("")
+        stats = stats_cache.get("global_stats")
+        if stats is None:
+            from database.db import get_global_stats
+            stats = await get_global_stats()
+            stats_cache.set("global_stats", stats, ttl=120)
+        text = (
+            "📊 **Global Bot Statistics**\n"
+            "──────────────────────────────\n"
+            f"👥 Users tracked: `{stats.get('total_users', 0)}`\n"
+            f"🚫 Total bans: `{stats.get('total_blacklisted', 0)}`\n"
+            f"🏘️ Active chats: `{stats.get('total_chats', 0)}`\n"
+            "──────────────────────────────\n"
+            "_Stats cached for 2 minutes._"
+        )
+        await query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="gadm_back")]])
+        )
+
+    @app.on_callback_query(filters.regex(r"^gadm_users$"))
+    async def cb_gadm_users(client: Client, query: CallbackQuery):
+        await query.answer("📤 Use /users command to export all users as a text file.", show_alert=True)
+
+    @app.on_callback_query(filters.regex(r"^gadm_broadcast$"))
+    async def cb_gadm_broadcast(client: Client, query: CallbackQuery):
+        await query.answer("📢 Use /broadcast command — reply to any message with /broadcast to send it to all chats.", show_alert=True)
+
+    @app.on_callback_query(filters.regex(r"^gadm_status$"))
+    async def cb_gadm_status(client: Client, query: CallbackQuery):
+        await query.answer("🖥️ Use /status command in private chat to view system health.", show_alert=True)
+
+    @app.on_callback_query(filters.regex(r"^gadm_back$"))
+    async def cb_gadm_back(client: Client, query: CallbackQuery):
+        await query.answer("")
+        stats = stats_cache.get("global_stats")
+        if stats is None:
+            from database.db import get_global_stats
+            stats = await get_global_stats()
+            stats_cache.set("global_stats", stats, ttl=120)
+        header = (
+            f"🛡️ **Global Admin Dashboard**\n"
+            f"──────────────────────────────\n"
+            f"👥 Users tracked: `{stats.get('total_users', 0)}`\n"
+            f"🚫 Total bans: `{stats.get('total_blacklisted', 0)}`\n"
+            f"🏘️ Active chats: `{stats.get('total_chats', 0)}`\n"
+            f"──────────────────────────────\n"
+            f"Select an action below:"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("📊 Global Stats", callback_data="gadm_stats"),
+                InlineKeyboardButton("👥 All Users", callback_data="gadm_users"),
+            ],
+            [
+                InlineKeyboardButton("📢 Broadcast", callback_data="gadm_broadcast"),
+                InlineKeyboardButton("🖥️ Status", callback_data="gadm_status"),
+            ],
+            [InlineKeyboardButton("❌ Close", callback_data="adm_close")],
+        ])
+        await query.edit_message_text(header, reply_markup=keyboard)
 
     @app.on_callback_query(filters.regex(r"^adm_stats_(-?\d+)$"))
     async def cb_stats(client: Client, query: CallbackQuery):
@@ -327,54 +391,6 @@ def register_admin_cmds(app: Client):
             ]])
         )
 
-    @app.on_callback_query(filters.regex(r"^cfg_toggle_(-?\d+)_(\w+)$"))
-    async def cfg_toggle(client: Client, query: CallbackQuery):
-        from database.db import DEFAULT_SETTINGS
-
-        await query.answer("")
-        m = re.match(r"^cfg_toggle_(-?\d+)_(\w+)$", query.data)
-        chat_id = int(m.group(1))
-        key = m.group(2)
-
-        try:
-            settings = settings_cache.get(str(chat_id))
-            if settings is None:
-                settings = await get_chat_settings(chat_id)
-                if not settings:
-                    settings = DEFAULT_SETTINGS.copy()
-
-            if key not in settings:
-                settings[key] = DEFAULT_SETTINGS.get(key, False)
-
-            new_value = not settings[key]
-            await set_chat_setting(chat_id, key, new_value)
-            settings_cache.delete(str(chat_id))
-            settings[key] = new_value
-
-            keyboard = []
-            for k, v in settings.items():
-                label_map = {
-                    "notify_leave": "🔔 Notify on Leave",
-                    "post_ban_joke": "😄 Post Ban Joke",
-                    "dm_banned_user": "📨 DM Banned User",
-                    "auto_welcome": "👋 Auto-Welcome",
-                }
-                emoji = "✅" if v else "❌"
-                label = label_map.get(k, k)
-                keyboard.append([InlineKeyboardButton(
-                    f"{label}: {emoji}",
-                    callback_data=f"cfg_toggle_{chat_id}_{k}"
-                )])
-
-            keyboard.append([InlineKeyboardButton("🔙 Back", callback_data=f"adm_back_{chat_id}")])
-
-            await query.edit_message_text(
-                "⚙️ **Chat Settings**\n─────────────────\nConfigure bot behavior for this chat:\n",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception as e:
-            logger.error(f"cfg_toggle error: {e}")
-
     @app.on_callback_query(filters.regex(r"^adm_back_(-?\d+)$"))
     async def cb_back(client: Client, query: CallbackQuery):
         await query.answer("")
@@ -383,7 +399,7 @@ def register_admin_cmds(app: Client):
         try:
             chat = await client.get_chat(chat_id)
             chat_name = chat.title or "This Chat"
-        except:
+        except Exception:
             chat_name = f"Chat {chat_id}"
 
         count_key = f"member_count:{chat_id}"
@@ -484,32 +500,33 @@ def register_admin_cmds(app: Client):
             f"Are you sure?",
             reply_markup=InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("✅ Confirm Ban", callback_data=f"adm_confirm_ban_{chat_id}_{target_id}_{display_name}"),
+                    InlineKeyboardButton("✅ Confirm Ban", callback_data=f"adm_confirm_ban_{chat_id}_{target_id}"),
                     InlineKeyboardButton("❌ Cancel", callback_data="adm_close"),
                 ]
             ])
         )
 
-    @app.on_callback_query(filters.regex(r"^adm_confirm_ban_(-?\d+)_(\d+)_([^_]+)$"))
+    @app.on_callback_query(filters.regex(r"^adm_confirm_ban_(-?\d+)_(\d+)$"))
     async def cb_confirm_ban(client: Client, query: CallbackQuery):
         await query.answer("")
-        m = re.match(r"^adm_confirm_ban_(-?\d+)_(\d+)_([^_]+)$", query.data)
+        m = re.match(r"^adm_confirm_ban_(-?\d+)_(\d+)$", query.data)
         chat_id = int(m.group(1))
         target_id = int(m.group(2))
-        display_name = m.group(3)
 
         await query.edit_message_text("⏳ Processing ban...")
 
         try:
-            await client.ban_chat_member(chat_id, target_id)
-
             try:
                 target_user = await client.get_users(target_id)
+                display_name = f"@{target_user.username}" if target_user.username else target_user.first_name or f"User #{target_id}"
                 first_name = target_user.first_name or ""
                 username = target_user.username or ""
-            except:
+            except Exception:
+                display_name = f"User #{target_id}"
                 first_name = ""
                 username = ""
+
+            await client.ban_chat_member(chat_id, target_id)
 
             await add_to_blacklist(target_id, chat_id, 0, first_name=first_name, username=username)
             blacklist_cache.set(f"{target_id}:{chat_id}", True, ttl=300)
@@ -704,7 +721,7 @@ def register_admin_cmds(app: Client):
             lines = [
                 "No Second Chances — Global User Export",
                 f"Total users: {len(users)}",
-                f"Generated at: {datetime.utcnow().isoformat()}",
+                f"Generated at: {datetime.now(UTC).isoformat()}",
                 "=" * 50,
                 "",
             ]

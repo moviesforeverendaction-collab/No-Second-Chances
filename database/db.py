@@ -190,12 +190,14 @@ async def get_global_stats() -> dict:
         return {"total_users": 0, "total_blacklisted": 0, "total_chats": 0}
 
 
-async def add_plea(user_id: int, chat_id: int, message: str) -> str | None:
+async def add_plea(user_id: int, chat_id: int, message: str, first_name: str = "", username: str = "") -> str | None:
     try:
         result = await pleas_coll.insert_one({
             "user_id": user_id,
             "chat_id": chat_id,
             "message": message,
+            "first_name": first_name,
+            "username": username,
             "status": "pending",
             "created_at": datetime.now(UTC),
         })
