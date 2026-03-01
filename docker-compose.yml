@@ -1,0 +1,29 @@
+services:
+  bot:
+    build: .
+    container_name: no_second_chances_bot
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+    networks:
+      - bot_network
+
+  mongo:
+    image: mongo:8.2
+    container_name: no_second_chances_db
+    restart: always
+    environment:
+      - MONGO_INITDB_DATABASE=no_second_chances
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - bot_network
+
+networks:
+  bot_network:
+    driver: bridge
+
+volumes:
+  mongo_data:

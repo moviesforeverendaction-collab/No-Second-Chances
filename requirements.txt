@@ -1,0 +1,9 @@
+python-dotenv==1.0.1
+kurigram==2.2.19
+motor==3.6.0
+# uvloop is not supported on native Windows. 
+# It is included here for Linux/Docker environments.
+# On Windows, the bot will gracefully fall back to the default event loop.
+uvloop==0.21.0; sys_platform != 'win32'
+pymongo==4.9.1
+aiohttp==3.11.11
