@@ -30,6 +30,9 @@ class TTLCache:
         for k in expired:
             del self._store[k]
 
+    def size(self) -> int:
+        return len(self._store)
+
 
 class RateLimiter:
     def __init__(self, max_calls: int = 3, window_seconds: float = 10.0):
@@ -52,4 +55,6 @@ blacklist_cache = TTLCache(default_ttl=300)
 member_count_cache = TTLCache(default_ttl=60)
 stats_cache = TTLCache(default_ttl=120)
 wallpaper_cache = TTLCache(default_ttl=60)
+settings_cache = TTLCache(default_ttl=300)
+bot_users_cache = TTLCache(default_ttl=120)
 rate_limiter = RateLimiter(max_calls=3, window_seconds=10)

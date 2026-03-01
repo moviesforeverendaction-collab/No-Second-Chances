@@ -1,8 +1,13 @@
 from pyrogram import Client, filters
 from pyrogram.types import ChatMemberUpdated
-from pyrogram.enums import ChatMemberStatus
-from database.db import add_to_blacklist, is_user_blacklisted, log_user_join
-from no_second_chances.cache import blacklist_cache, member_count_cache
+from pyrogram.enums import ChatMemberStatus, ChatAction
+from database.db import (
+    add_to_blacklist,
+    is_user_blacklisted,
+    log_user_join,
+    increment_ban_count,
+)
+from no_second_chances.cache import blacklist_cache, member_count_cache, settings_cache
 from no_second_chances.ai_client import generate_ban_joke
 from logger import logger
 
@@ -47,7 +52,6 @@ def register_plugin(app: Client):
                 ChatMemberStatus.OWNER,
                 ChatMemberStatus.RESTRICTED,
             ):
-                # Admin-initiated ban: do not blacklist
                 if new and new.status == ChatMemberStatus.BANNED:
                     is_leave = False
                 else:
@@ -64,14 +68,52 @@ def register_plugin(app: Client):
                     cached_bl = await is_user_blacklisted(user_id, chat_id)
                     blacklist_cache.set(bl_key, cached_bl, ttl=300)
 
+                settings = settings_cache.get(str(chat_id))
+                if settings is None:
+                    from database.db import get_chat_settings
+                    settings = await get_chat_settings(chat_id)
+                    settings_cache.set(str(chat_id), settings, ttl=300)
+
                 if cached_bl:
                     await app.ban_chat_member(chat_id, user_id)
+                    await increment_ban_count(user_id, chat_id)
+
+                    display = f"@{user.username}" if user.username else user.first_name or f"User #{user_id}"
+
+                    from database.db import blacklist_coll
+                    bl_doc = await blacklist_coll.find_one({"user_id": user_id, "chat_id": chat_id})
+                    ban_count = bl_doc.get("ban_count", 1) if bl_doc else 1
+                    ban_ts = bl_doc.get("exit_time") if bl_doc else None
+                    ts_str = ban_ts.strftime("%Y-%m-%d %H:%M UTC") if ban_ts and hasattr(ban_ts, "strftime") else "unknown"
+
                     joke = await generate_ban_joke(user_id)
+
+                    msg = (
+                        f"🚫 **{display}** tried to sneak back in... not today!\n"
+                        f"{'─' * 30}\n"
+                        f"🆔 ID: `{user_id}`\n"
+                        f"📅 Originally banned: `{ts_str}`\n"
+                        f"🔄 Rejoin attempt #{ban_count}\n"
+                        f"{'─' * 30}\n"
+                        f"_{joke}_"
+                    )
+
+                    if settings.get("post_ban_joke", True):
+                        try:
+                            await app.send_message(chat_id, msg)
+                        except Exception:
+                            pass
+
                     logger.info(
                         f"🚨 ALERT: Blacklisted user {user_id} attempted to rejoin {chat_id}. BANNED."
                     )
+                elif settings.get("auto_welcome", False):
+                    display = f"@{user.username}" if user.username else user.first_name
                     try:
-                        await app.send_message(chat_id, f"🚫 {joke}")
+                        await app.send_message(
+                            chat_id,
+                            f"👋 Welcome {display}! 🛡️ This group is protected by No Second Chances."
+                        )
                     except Exception:
                         pass
             except Exception as e:
@@ -92,8 +134,29 @@ def register_plugin(app: Client):
                     member_count = await app.get_chat_members_count(chat_id)
                     member_count_cache.set(count_key, member_count, ttl=60)
 
-                await add_to_blacklist(user_id, chat_id, member_count)
+                first_name = user.first_name or ""
+                username = user.username or ""
+
+                await add_to_blacklist(user_id, chat_id, member_count, first_name=first_name, username=username)
                 blacklist_cache.set(f"{user_id}:{chat_id}", True, ttl=300)
+
+                settings = settings_cache.get(str(chat_id))
+                if settings is None:
+                    from database.db import get_chat_settings
+                    settings = await get_chat_settings(chat_id)
+                    settings_cache.set(str(chat_id), settings, ttl=300)
+
+                if settings.get("notify_leave", False):
+                    display = f"@{username}" if username else first_name or f"User #{user_id}"
+                    try:
+                        await app.send_message(
+                            chat_id,
+                            f"👋 **{display}** has left the building.\n"
+                            f"_They've been added to the watchlist._"
+                        )
+                    except Exception:
+                        pass
+
                 logger.info(
                     f"User {user_id} left {chat_id}. Blacklisted. (Userbase: {member_count})"
                 )
