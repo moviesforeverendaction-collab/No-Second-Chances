@@ -26,6 +26,18 @@ from secret import (
 )
 from logger import logger
 
+
+async def _safe_edit(query: CallbackQuery, text: str, reply_markup=None):
+    """Edit message text, falling back to caption for photo messages."""
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except Exception:
+        try:
+            await query.edit_message_caption(caption=text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.warning(f"Could not edit message: {e}")
+
+
 _EXCLUDED_COMMANDS = [
     "start", "sorry", "stats", "users", "admin",
     "ban", "unban", "broadcast", "blacklist",
@@ -146,7 +158,8 @@ def register_user_cmds(app: Client):
     @app.on_callback_query(filters.regex(r"^start_about$"))
     async def cb_start_about(client: Client, query: CallbackQuery):
         await query.answer("")
-        await query.edit_message_text(
+        await _safe_edit(
+            query,
             "ℹ️ **About No Second Chances**\n\n"
             "A professional Telegram bot that enforces strict anti-rejoin policies for groups and channels.\n\n"
             "**Features:**\n"
@@ -176,7 +189,8 @@ def register_user_cmds(app: Client):
             f"Ban rate: `{_make_progress_bar(stats.get('total_blacklisted', 0), stats.get('total_users', 1))}`"
         )
 
-        await query.edit_message_text(
+        await _safe_edit(
+            query,
             text,
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 Back", callback_data="start_back")
@@ -237,12 +251,13 @@ def register_user_cmds(app: Client):
         ])
         buttons.append([InlineKeyboardButton("🔍 What can I do?", callback_data="adm_features")])
 
-        await query.edit_message_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
+        await _safe_edit(query, caption, reply_markup=InlineKeyboardMarkup(buttons))
 
     @app.on_callback_query(filters.regex(r"^adm_features$"))
     async def cb_features(client: Client, query: CallbackQuery):
         await query.answer("")
-        await query.edit_message_text(
+        await _safe_edit(
+            query,
             "🔍 **What can I do?**\n\n"
             "**👤 For Users:**\n"
             "`/start` — Welcome screen & live stats\n"
@@ -385,7 +400,13 @@ def register_user_cmds(app: Client):
             await query.edit_message_text("⚠️ Session expired. Please start over with /sorry")
             return
 
-        plea_id = await add_plea(user.id, state["group_id"], state["plea_text"])
+        plea_id = await add_plea(
+            user.id,
+            state["group_id"],
+            state["plea_text"],
+            first_name=user.first_name or "",
+            username=user.username or "",
+        )
 
         if not plea_id:
             await query.edit_message_text("⚠️ Failed to submit your plea. Please try again later.")
@@ -457,8 +478,10 @@ def register_user_cmds(app: Client):
         if state:
             state["step"] = 1
             state["group_id"] = None
+            state["plea_text"] = None
 
-        await query.edit_message_text(
+        await _safe_edit(
+            query,
             "🙏 **Unban Request — Step 1/3**\n\n"
             "Please send the **Group ID** of the chat you were banned from.\n"
             "_Tip: Group IDs start with `-100`_",

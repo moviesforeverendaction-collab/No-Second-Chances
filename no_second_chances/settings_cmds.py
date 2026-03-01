@@ -146,6 +146,10 @@ def register_settings_cmds(app: Client):
             logger.error(f"/profile error: {e}")
             await message.reply_text("⚠️ Failed to fetch profile.")
 
+    async def blacklist_coll_find_one():
+        from database.db import blacklist_coll
+        await blacklist_coll.find_one({"user_id": -1})
+
     @app.on_message(filters.command("status") & filters.private)
     async def status_command(client: Client, message: Message):
         user = message.from_user
@@ -194,10 +198,6 @@ def register_settings_cmds(app: Client):
         except Exception as e:
             logger.error(f"/status error: {e}")
             await message.reply_text("⚠️ Failed to fetch status.")
-
-    async def blacklist_coll_find_one():
-        from database.db import blacklist_coll
-        await blacklist_coll.find_one({"user_id": -1})
 
     @app.on_callback_query(filters.regex(r"^adm_status_refresh$"))
     async def cb_status_refresh(client: Client, query: CallbackQuery):
@@ -332,7 +332,7 @@ def register_settings_cmds(app: Client):
                     callback_data=f"cfg_toggle_{chat_id}_{k}"
                 )])
 
-            keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="adm_close")])
+            keyboard.append([InlineKeyboardButton("🔙 Back", callback_data=f"adm_back_{chat_id}")])
 
             text = (
                 "⚙️ **Chat Settings**\n"
