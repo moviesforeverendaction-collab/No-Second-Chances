@@ -456,6 +456,7 @@ def register_admin_cmds(app: Client):
         target_id = None
         target_name = None
         target_username = None
+        target = None
 
         if message.reply_to_message and message.reply_to_message.from_user:
             target = message.reply_to_message.from_user
@@ -472,10 +473,10 @@ def register_admin_cmds(app: Client):
             try:
                 target_id = int(parts[1])
                 try:
-                    user_obj = await client.get_users(target_id)
-                    target_name = user_obj.first_name
-                    target_username = user_obj.username
-                except:
+                    target = await client.get_users(target_id)
+                    target_name = target.first_name
+                    target_username = target.username
+                except Exception:
                     target_name = f"User #{target_id}"
             except ValueError:
                 await message.reply_text("⚠️ Invalid user ID. Must be a number.")
@@ -484,12 +485,16 @@ def register_admin_cmds(app: Client):
         if not target_id:
             return
 
+        if target and target.is_bot:
+            await message.reply_text("⚠️ Cannot ban bots.")
+            return
+
         display_name = f"@{target_username}" if target_username else target_name
 
         try:
             chat = await client.get_chat(chat_id)
             chat_name = chat.title or "this group"
-        except:
+        except Exception:
             chat_name = "this group"
 
         confirm_msg = await message.reply_text(
@@ -543,7 +548,7 @@ def register_admin_cmds(app: Client):
                     try:
                         chat_obj = await client.get_chat(chat_id)
                         chat_name = chat_obj.title or "this group"
-                    except:
+                    except Exception:
                         chat_name = "this group"
 
                     dm_text = await generate_ban_dm(target_id, first_name, chat_name)
@@ -600,7 +605,7 @@ def register_admin_cmds(app: Client):
                     user_obj = await client.get_users(target_id)
                     target_name = user_obj.first_name
                     target_username = user_obj.username
-                except:
+                except Exception:
                     target_name = f"User #{target_id}"
             except ValueError:
                 await message.reply_text("⚠️ Invalid user ID. Must be a number.")
