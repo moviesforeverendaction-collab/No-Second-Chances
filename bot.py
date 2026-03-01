@@ -7,14 +7,15 @@ from pyrogram import Client
 from secret import API_ID, API_HASH, BOT_TOKEN, MONGO_URL
 from database.db import setup_database
 from no_second_chances.plugin import register_plugin
-from no_second_chances.ui import register_ui
+from no_second_chances.admin_cmds import register_admin_cmds
+from no_second_chances.user_cmds import register_user_cmds
+from no_second_chances.ai_client import initialize_ai
 from logger import logger
 
-# Performance: uvloop is not available on Windows. Only set if supported.
 if sys.platform != "win32":
     try:
         import uvloop
-        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        uvloop.install()
         logger.info("Using uvloop for better performance.")
     except ImportError:
         logger.warning("uvloop not found. Using default event loop.")
@@ -28,10 +29,14 @@ class NoSecondChancesBot:
             name="no_second_chances_bot",
             api_id=API_ID,
             api_hash=API_HASH,
-            bot_token=BOT_TOKEN
+            bot_token=BOT_TOKEN,
+            sleep_threshold=60,
         )
         self.web_app = web.Application()
-        self.web_app.add_routes([web.get('/', self.handle_home), web.get('/health', self.handle_health)])
+        self.web_app.add_routes([
+            web.get("/", self.handle_home),
+            web.get("/health", self.handle_health),
+        ])
         self.runner = None
 
     async def handle_home(self, request):
@@ -49,9 +54,6 @@ class NoSecondChancesBot:
         logger.info(f"Web server started on port {port}")
 
     async def self_ping(self):
-        """
-        Periodically pings the bot to keep it awake on Render.
-        """
         url = os.getenv("SELF_PING_URL")
         if not url:
             logger.info("SELF_PING_URL not set. Skipping self-ping task.")
@@ -65,51 +67,63 @@ class NoSecondChancesBot:
                         logger.info(f"Self-ping status: {response.status}")
             except Exception as e:
                 logger.error(f"Self-ping failed: {e}")
-            
-            # Wait 14 minutes (Render free tier sleeps after 15m of inactivity)
             await asyncio.sleep(14 * 60)
+
+    async def _cache_eviction_loop(self):
+        from no_second_chances.cache import blacklist_cache, member_count_cache, stats_cache, wallpaper_cache
+        while True:
+            await asyncio.sleep(300)
+            blacklist_cache.evict_expired()
+            member_count_cache.evict_expired()
+            stats_cache.evict_expired()
+            wallpaper_cache.evict_expired()
 
     async def start(self):
         try:
             logger.info("Starting No Second Chances Bot...")
-            
-            # Setup database
+
             await setup_database()
-            
-            # Register handlers
+            await initialize_ai()
+
             register_plugin(self.app)
-            register_ui(self.app)
-            
-            # Start the app
+            register_admin_cmds(self.app)
+            register_user_cmds(self.app)
+
             await self.app.start()
             logger.info("Bot is now online and enforcing rules.")
-            
-            # Start web server
+
             await self.start_web_server()
-            
-            # Start self-ping in background
+
             asyncio.create_task(self.self_ping())
-            
-            # Keep the bot running
+            asyncio.create_task(self._cache_eviction_loop())
+
             await asyncio.Event().wait()
         except Exception as e:
             logger.error(f"Error during bot startup: {e}")
             raise
-
+        finally:
+            await self.stop()
 
     async def stop(self):
         logger.info("Stopping Bot...")
-        await self.app.stop()
+        try:
+            await self.app.stop()
+        except Exception:
+            pass
+        if self.runner:
+            await self.runner.cleanup()
         logger.info("Bot stopped successfully.")
 
-if __name__ == "__main__":
+
+async def main():
     bot = NoSecondChancesBot()
-    loop = asyncio.get_event_loop()
-    
+    await bot.start()
+
+
+if __name__ == "__main__":
     try:
-        loop.run_until_complete(bot.start())
+        asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        loop.run_until_complete(bot.stop())
+        pass
     except Exception as e:
         logger.critical(f"FATAL ERROR: {e}")
-        loop.run_until_complete(bot.stop())

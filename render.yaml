@@ -18,3 +18,27 @@ services:
       - key: SELF_PING_URL
         description: The public URL of this service (e.g. https://no-second-chances.onrender.com)
         sync: false
+      - key: ADMIN_ID
+        description: Comma-separated list of global admin Telegram user IDs
+        sync: false
+      - key: AI_PROVIDER
+        description: AI provider to use (gemini, openai, grok, claude)
+        sync: false
+      - key: AI_API_KEY
+        description: API key for the configured AI provider
+        sync: false
+      - key: DEV_USERNAME
+        description: Telegram username of the developer (shown in /start button)
+        sync: false
+      - key: DOCS_URL
+        description: URL for the Docs button in /start
+        sync: false
+      - key: COMMUNITY_URL
+        description: URL for the Community button in /start
+        sync: false
+      - key: FEEDBACK_URL
+        description: URL for the Feedback button in /start
+        sync: false
+      - key: SUPPORT_CHAT_ID
+        description: Chat ID or username where /sorry pleas are forwarded
+        sync: false
