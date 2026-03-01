@@ -32,3 +32,23 @@ if ADMIN_ID:
         ADMIN_IDS = [int(i.strip()) for i in ADMIN_ID.split(",") if i.strip()]
     except ValueError:
         logger.warning("ADMIN_ID contains invalid integers. Falling back to empty list.")
+
+# AI integration (optional)
+AI_PROVIDER = os.getenv("AI_PROVIDER", "").lower().strip()
+AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
+
+# Link buttons for /start command (optional)
+DEV_USERNAME = os.getenv("DEV_USERNAME", "").strip().lstrip("@")
+DOCS_URL = os.getenv("DOCS_URL", "").strip()
+COMMUNITY_URL = os.getenv("COMMUNITY_URL", "").strip()
+FEEDBACK_URL = os.getenv("FEEDBACK_URL", "").strip()
+
+# Support chat for /sorry pleas (optional — int chat_id or @username)
+_support_raw = os.getenv("SUPPORT_CHAT_ID", "").strip()
+if _support_raw:
+    try:
+        SUPPORT_CHAT_ID = int(_support_raw)
+    except ValueError:
+        SUPPORT_CHAT_ID = _support_raw  # keep as username string
+else:
+    SUPPORT_CHAT_ID = None
